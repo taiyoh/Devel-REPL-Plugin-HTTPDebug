@@ -1,5 +1,6 @@
 package Devel::REPL::Plugin::HTTPDebug;
 
+use utf8;
 use Devel::REPL::Plugin;
 use MooseX::AttributeHelpers;
 use namespace::clean -except => [ 'meta' ];
@@ -9,9 +10,6 @@ require HTTP::Request::Common;
 use Rose::URI;
 use Term::ANSIColor;
 
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
 my %query;
 my $format = 'raw';
 # cache for latest request and response
@@ -19,8 +17,10 @@ my $format = 'raw';
 our $VERSION = '0.01';
 
 our %COLORS = (
-    HEADER_KEY   => 'bold blue',
-    HEADER_VALUE => '',
+    REQHEADER_KEY   => 'bold blue',
+    REQHEADER_VALUE => '',
+    RESHEADER_KEY   => 'bold blue',
+    RESHEADER_VALUE => '',
     CONTENT => ''
 );
 
@@ -31,15 +31,16 @@ has ua => (
     default => sub { LWP::UserAgent->new }
 );
 
-has req => (
-    is => 'rw',
-    isa => 'HTTP::Request',
-);
-
-has res => (
-    is => 'rw',
-    isa => 'HTTP::Response',
-);
+do {
+    my %attr = (
+        req => 'HTTP::Request',
+        res => 'HTTP::Response',
+        host => 'Str'
+    );
+    while (my ($k, $v) = each %attr) {
+        has $k => ( is => 'rw', isa => $v );
+    }
+};
 
 has cookie_file => (
     is => 'rw',
@@ -59,11 +60,6 @@ has cookie => (
     default => sub { return shift->_new_cookie; }
 );
 
-has host => (
-    is => 'rw',
-    isa => 'Str',
-);
-
 around 'eval' => sub {
     my $orig = shift;
     my ($self, $line) = @_;
@@ -80,7 +76,7 @@ sub _new_cookie {
     return HTTP::Cookies->new(file => $self->cookie_file, autosave => 1);
 }
 
-# 違う出力にしたいときは、aroundで変えてほしい
+# 違う出力にしたいときは、aroundで変えてほしいです
 sub _dumper {
     require YAML;
     return YAML->can('Dump');
@@ -126,16 +122,16 @@ sub undef_session {
     $self->cookie($self->_new_cookie);
 }
 
-sub hdump {
+sub req_dump {
     my $self = shift;
-    coloring_line($self->req->as_string);
+    coloring_line($self->req->as_string, 'req');
 }
 
-sub rdump {
+sub res_dump {
     my $self = shift;
     my $res = $self->res;
     my $h = join(' ', ($res->protocol, $res->code, $res->message));
-    coloring_line($h . "\n" . $res->headers->as_string)
+    coloring_line($h . "\n" . $res->headers->as_string, 'res')
 }
 
 sub cdump {
@@ -161,11 +157,14 @@ sub cdump {
 
 sub coloring_line {
     my $line = shift;
+    my $flag = shift || 'req';
     my @lines = split "\n", $line;
     @lines = map {
         if(my ($k, $v) = (/^(.+?) (.+?)$/)) {
-            $k = colored($k, $COLORS{HEADER_KEY})   if $COLORS{HEADER_KEY};
-            $v = colored($v, $COLORS{HEADER_VALUE}) if $COLORS{HEADER_VALUE};
+            my $hk = $COLORS{uc($flag).'HEADER_KEY'};
+            my $hv = $COLORS{uc($flag).'HEADER_VALUE'};
+            $k = colored($k, $hk) if $hk;
+            $v = colored($v, $hv) if $hv;
             "${k} ${v}";
         }
         else {
@@ -183,7 +182,10 @@ sub _req_common {
     my ($self, $c, $path, $args, $res_format) = @_;
     $self->$c($path, $args) or return;
     $format = $res_format || 'raw';
-    $self->print($self->rdump ."\n". $self->res->decoded_content);
+    $self->print(
+        $self->res_dump ."\n".
+        $self->res->decoded_content
+    );
 }
 
 sub get_q {
@@ -221,6 +223,7 @@ sub file_q {
 sub _get_url {
     my $self = shift;
     my ($path, $p) = @_;
+    $p ||= {};
     if (!$self->host) {
         $self->print('no host');
         return;
@@ -236,27 +239,45 @@ sub _get_url {
 1;
 __END__
 
+=encoding utf-8
+
 =head1 NAME
 
 Devel::REPL::Plugin::HTTPDebug -
 
 =head1 SYNOPSIS
 
-  $ ./bin/http_debug.pl
+
+  $ ./bin/http_debug.pl --host=ma.la
+
+  $ get_q '/is/married', { foo => 'bar' }
+  HTTP::Response=HASH(0x1f36980)
+  $ req_dump
+  GET http://ma.la/is/married?foo=bar
+  User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_1; ja-jp) AppleWebKit/531.9 (KHTML, like Gecko) Version/4.0.3 Safari/531.9
+
+  $ res_dump
+  HTTP/1.1 200 OK
+  Connection: close
+  Date: Wed, 23 Sep 2009 09:40:44 GMT
+  Server: Apache
+  Content-Type: text/javascript; charset=utf-8
+  Client-Date: Wed, 23 Sep 2009 09:40:38 GMT
+  Client-Peer: 221.186.251.72:80
+  Client-Response-Num: 1
+  Client-Transfer-Encoding: chunked
+
+  $ cdump
+  true
+
+  $ get_q '/is/married', { foo => 'bar' }, 'json'
+  HTTP::Response=HASH(0x1ed7188)
+  $ cdump
+  --- !!perl/scalar:JSON::XS::Boolean 1
+
 
 =head1 DESCRIPTION
 
-Devel::REPL::Plugin::HTTPDebug is
-
-=head1 AUTHOR
-
-taiyoh E<lt>sun.basix@gmail.comE<gt>
-
-=head1 SEE ALSO
-
-=head1 LICENSE
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
+see Devel::REPL::Plugin::HTTPDebug::Doc.ja.pod
 
 =cut

@@ -1,0 +1,152 @@
+=encoding utf-8
+
+=head1 NAME
+
+Devel::REPL::Plugin::HTTPDebug::ja - Japanese document
+
+=head1 SYNOPSIS
+
+
+  $ ./bin/http_debug.pl --host=ma.la
+
+  $ get_q '/is/married', { foo => 'bar' }
+  HTTP::Response=HASH(0x1f36980)
+  $ req_dump
+  GET http://ma.la/is/married?foo=bar
+  User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_1; ja-jp) AppleWebKit/531.9 (KHTML, like Gecko) Version/4.0.3 Safari/531.9
+
+  $ res_dump
+  HTTP/1.1 200 OK
+  Connection: close
+  Date: Wed, 23 Sep 2009 09:40:44 GMT
+  Server: Apache
+  Content-Type: text/javascript; charset=utf-8
+  Client-Date: Wed, 23 Sep 2009 09:40:38 GMT
+  Client-Peer: 221.186.251.72:80
+  Client-Response-Num: 1
+  Client-Transfer-Encoding: chunked
+
+  $ cdump
+  true
+
+  $ get_q '/is/married', { foo => 'bar' }, 'json'
+  HTTP::Response=HASH(0x1ed7188)
+  $ cdump
+  --- !!perl/scalar:JSON::XS::Boolean 1
+
+
+=head1 DESCRIPTION
+
+Devel::REPL::Plugin::HTTPDebug は、Firebugのコンソールライクに
+HTTP通信をダンプしながらデバッグするためのツールです。
+アクセスする際は、jQueryの$.getや$.postっぽい動きをベースにしています
+
+
+=head1 EXPORTABLE FUNCTIONS
+
+
+=head2 get $path, [\%query_param, [$format]] | $_REPL->get($path, [\%query_param, [$format]])
+
+http://${HOST}${path}?%{query}
+に対してGETリクエストを飛ばす。
+$formatはrawがディフォルト。jsonとxmlも選択可。
+cdump（後述）実行時ににも、フォーマットに合わせて出力が変化する。
+get_q（後述）との違いは、実行時にレスポンスをダンプすること。
+
+
+=head2 get_q $path, [\%query_param, [$format]] | $_REPL->get_q($path, [\%query_param, [$format]])
+
+http://${HOST}${path}?%{query}
+に対してGETリクエストを飛ばす。
+
+
+=head2 post $path, [\%query_param, [$format]] | $_REPL->post($path, [\%query_param, [$format]])
+
+http://${HOST}${path}
+に対してPOSTリクエストを飛ばす。
+リクエスト時に、Content-Typeヘッダをapplication/x-www-form-urlencodedで出力。
+post_q（後述）との違いは、実行時にレスポンスをダンプすること。
+
+
+=head2 post_q $path, [\%query_param, [$format]] | $_REPL->post_q($path, [\%query_param, [$format]])
+
+http://${HOST}${path}
+に対してPOSTリクエストを飛ばす。
+
+
+=head2 file $path, [\%query_param, [$format]] | $_REPL->file($path, [\%query_param, [$format]])
+
+http://${HOST}${path}
+に対してPOSTリクエストを飛ばす。
+リクエスト時に、Content-Typeヘッダをmultipart/form-dataで出力
+file_q（後述）との違いは、実行時にレスポンスをダンプすること。
+
+
+=head2 file_q $path, [\%query_param, [$format]] | $_REPL->file_q($path, [\%query_param, [$format]])
+
+http://${HOST}${path}
+に対してPOSTリクエストを飛ばす。
+
+
+=head2 host $host | $_REPL->file_q($host)
+
+ホストを変更できる。
+
+
+=head2 use_session | $_REPL->use_session
+
+この時点からのリクエストでセッションを有効にする
+
+
+=head2 clear_session | $_REPL->clear_session
+
+この時点で指定されているドメインのセッションを破棄する
+
+
+=head2 undef_session | $_REPL->undef_session
+
+この時点までのセッションを全て破棄する
+
+
+=head2 add \%query | $_REPL->add(\%query)
+
+リクエストパラメータを部分的に追加
+
+
+=head2 clear | $_REPL->clear
+
+リクエストパラメータを全て破棄
+
+
+=head2 req | $_REPL->req
+
+直近のリクエストのオブジェクトを取得
+
+
+=head2 req_dump | $_REPL->req_dump
+
+直近のリクエストのダンプを出力
+
+
+=head2 res | $_REPL->res
+
+直近のレスポンスのオブジェクトを取得
+
+
+=head2 res_dump | $_REPL->res_dump
+
+直近のレスポンスのダンプを出力
+
+
+=head1 AUTHOR
+
+taiyoh E<lt>sun.basix@gmail.comE<gt>
+
+=head1 SEE ALSO
+
+=head1 LICENSE
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut
