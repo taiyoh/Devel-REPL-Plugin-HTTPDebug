@@ -20,6 +20,7 @@ use Devel::REPL;
 
 my $repl = Devel::REPL->new;
 $repl->load_plugin($_) for qw(History LexEnv HTTPDebug);
+
 $repl->host($opts->{host}) if $opts->{host};
 $repl->use_session if $opts->{use_session};
 

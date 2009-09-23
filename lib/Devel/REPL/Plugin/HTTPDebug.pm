@@ -5,13 +5,20 @@ use MooseX::AttributeHelpers;
 use namespace::clean -except => [ 'meta' ];
 
 use LWP::UserAgent;
+require HTTP::Request::Common;
 use Rose::URI;
+use Term::ANSIColor qw(:constants);
 
 my %query;
-# cache for latest request
+# cache for latest request and response
 my ($req, $res);
 
 our $VERSION = '0.01';
+
+our %COLORS = (
+    HEADER_KEY   => BOLD.BLUE,
+    HEADER_VALUE => ''
+);
 
 has ua => (
     is => 'ro',
@@ -52,7 +59,7 @@ around 'eval' => sub {
     my $orig = shift;
     my ($self, $line) = @_;
     my ($comm, $args) = ($line =~ /^(.+?) (.+?)$/);
-    $comm ||= '';
+    $comm ||= $line;
     $args ||= '';
     return $orig->($self, "\$_REPL->$comm($args)") if $self->can($comm);
     return $orig->(@_);
@@ -60,12 +67,25 @@ around 'eval' => sub {
 
 sub add {
     my $self = shift;
-    my %p = @_;
-    %p = %{$_[0]} unless $_[1];
+    my %p = ($_[1]) ? @_ : %{$_[0]};
     while (my ($k, $v) = each %p) {
         $query{$k} = $v;
     }
 }
+
+do {
+    my %aliases = ();
+    sub set_alias {
+        my $self = shift;
+        my ($key, $value) = @_;
+        $aliases{$key} = $value;
+    }
+    sub call {
+        my $self = shift;
+        my $key = shift;
+        $self->eval($aliases{$key}) if $aliases{$key};
+    }
+};
 
 sub use_session {
     my $self = shift;
@@ -87,65 +107,88 @@ sub undef_session {
     $self->cookie($c);
 }
 
-sub get {
-    my $self = shift;
-    my $res = $self->get_q(@_);
-    $self->print($res->as_string);
+sub hdump { coloring_line($req->as_string) }
+
+sub rdump {
+    my $h = $res->protocol . " ". $res->code . " " . $res->message;
+    coloring_line($h . "\n" . $res->headers->as_string)
 }
 
-sub hdump { $req->as_string; }
-sub rdump { $res->{_headers}->as_string; }
 sub cdump { $res->decoded_content }
 
+sub coloring_line {
+    my $line = shift;
+    my @lines = split "\n", $line;
+    @lines = map {
+        if(my ($k, $v) = (/^(.+?) (.+?)$/)) {
+            $k = $COLORS{HEADER_KEY}   . $k . RESET if $COLORS{HEADER_KEY};
+            $v = $COLORS{HEADER_VALUE} . $v . RESET if $COLORS{HEADER_VALUE};
+            "${k} ${v}";
+        }
+        else {
+            $_
+        }
+    } @lines;
+    return join("\n", @lines)."\n";
+}
+
+sub get {
+    my $self = shift;
+    $res = $self->get_q(@_);
+    $self->print(rdump() ."\n". cdump());
+}
+
 sub get_q {
+    my $self = shift;
+    my $u = $self->_get_url(@_) or return;
+    $u->query_form(%query);
+    $req = HTTP::Request->new(GET => "$u");
+    $res = $self->ua->request($req);
+}
+
+sub post {
+    my $self = shift;
+    $res = $self->post_q(@_) or return;
+    $self->print(rdump() ."\n". cdump());
+}
+
+sub post_q {
+    my $self = shift;
+    my $u = $self->_get_url(@_) or return;
+    $req = HTTP::Request::Common::POST("$u", [ %query ]);
+    $res = $self->ua->request($req);
+}
+
+sub file {
+    my $self = shift;
+    my $res = $self->file_q(@_) or return;
+    $self->print(rdump() ."\n". cdump());
+}
+
+sub file_q {
+    my $self = shift;
+    my $u = $self->_get_url(@_) or return;
+    $req = HTTP::Request::Common::POST(
+        "$u",
+        Content_Type => 'form-data',
+        Content => [ %query ]
+    );
+    $res = $self->ua->request($req);
+}
+
+sub _get_url {
     my $self = shift;
     my ($path, @p) = @_;
     if (!$self->host) {
         $self->print('no host');
-        return '';
+        return;
     }
     my $u = Rose::URI->new;
     $u->scheme('http');
     $u->host($self->host);
     $u->path($path);
     $self->add(@p) if @p;
-    $u->query_form(%query);
-    my $url = "$u";
-    $req = HTTP::Request->new(GET => $url);
-    $res = $self->ua->request($req);
-}
-
-sub post {
-    my $self = shift;
-    my $res = $self->post_q(@_);
-    $self->print($res->as_string);
-}
-
-sub post_q {
-    my $self = shift;
-    my ($path, %p) = @_;
-    if (!$self->host) {
-        $self->print('no host');
-        return '';
-    }
-    my $u = Rose::URI->new;
-    $u->scheme('http');
-    $u->host($self->host);
-    $u->path($path);
-    $self->add(%p);
-    my $url = "$u";
-    my $content = $self->serialize;
-    $req = HTTP::Request->new(POST => $url);
-    $req->header('Content-Type' => 'application/x-www-form-urlencoded');
-    $req->header('Content-Length' => length($content));
-    $req->content($content);
-    $res = $self->ua->request($req);
-}
-
-sub serialize {
-    my $u = Rose::URI->new;
-    $u->query(\%query);
-    return $u->query;
+    return $u;
 }
 
 1;
