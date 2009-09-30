@@ -47,6 +47,7 @@ has dump_format => (
     default => 'raw'
 );
 
+# 違う出力にしたいときは、適当に変えていただけると嬉しいです
 has dumper => (
     is => 'ro',
     isa => 'CodeRef',
@@ -91,7 +92,6 @@ sub _new_cookie {
     return HTTP::Cookies->new(file => $self->cookie_file, autosave => 1);
 }
 
-# 違う出力にしたいときは、aroundで変えてほしいです
 sub add {
     my $self = shift;
     my %p = %{$_[0]};
