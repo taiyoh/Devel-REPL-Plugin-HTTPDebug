@@ -28,9 +28,9 @@ $repl->load_plugin($_) for qw(History LexEnv HTTPDebug);
 $repl->host($opts->{host}) if $opts->{host};
 $repl->use_session if $opts->{use_session};
 
-$Devel::REPL::Plugin::HTTPDebug::COLORS{REQHEADER_KEY} = $opts->{color_reqk}   if $opts->{color_reqk};
+$Devel::REPL::Plugin::HTTPDebug::COLORS{REQHEADER_KEY}   = $opts->{color_reqk} if $opts->{color_reqk};
 $Devel::REPL::Plugin::HTTPDebug::COLORS{REQHEADER_VALUE} = $opts->{color_reqv} if $opts->{color_reqv};
-$Devel::REPL::Plugin::HTTPDebug::COLORS{RESHEADER_KEY} = $opts->{color_resk}   if $opts->{color_resk};
+$Devel::REPL::Plugin::HTTPDebug::COLORS{RESHEADER_KEY}   = $opts->{color_resk} if $opts->{color_resk};
 $Devel::REPL::Plugin::HTTPDebug::COLORS{RESHEADER_VALUE} = $opts->{color_resv} if $opts->{color_resv};
 
 # safari4

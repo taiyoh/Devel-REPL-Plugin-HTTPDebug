@@ -11,8 +11,6 @@ use Rose::URI;
 use Term::ANSIColor;
 
 my %query;
-my $format = 'raw';
-# cache for latest request and response
 
 our $VERSION = '0.01';
 
@@ -41,6 +39,23 @@ do {
         has $k => ( is => 'rw', isa => $v );
     }
 };
+
+has dump_format => (
+    is => 'rw',
+    isa => 'Str',
+    lazy => 1,
+    default => 'raw'
+);
+
+has dumper => (
+    is => 'ro',
+    isa => 'CodeRef',
+    lazy => 1,
+    default => sub {
+        require YAML;
+        return YAML->can('Dump');
+    }
+);
 
 has cookie_file => (
     is => 'rw',
@@ -77,11 +92,6 @@ sub _new_cookie {
 }
 
 # 違う出力にしたいときは、aroundで変えてほしいです
-sub _dumper {
-    require YAML;
-    return YAML->can('Dump');
-}
-
 sub add {
     my $self = shift;
     my %p = %{$_[0]};
@@ -137,18 +147,17 @@ sub res_dump {
 sub cdump {
     my $self = shift;
     my $str = $self->res->decoded_content;
-    if ($format eq 'json') {
+    if ($self->dump_format eq 'json') {
         # ここも変えられたらいい気はするけど…
         require JSON::XS;
-        my $dumped = _dumper->(JSON::XS::decode_json($str));
+        my $dumped = $self->dumper->(JSON::XS::decode_json($str));
         utf8::encode($dumped) if utf8::is_utf8($dumped);
         return $dumped;
     }
-    elsif ($format eq 'xml') {
+    elsif ($self->dump_format eq 'xml') {
         # 本音は XML::Simple sucks
         require XML::Simple;
-        utf8::encode($str) if utf8::is_utf8($str);
-        my $dumped = _dumper->(XMLin($str));
+        my $dumped = $self->dumper->(XML::Simple::XMLin($str));
         utf8::encode($dumped) if utf8::is_utf8($dumped);
         return $dumped;
     }
@@ -181,7 +190,7 @@ sub file { shift->_req_common('file_q', @_); }
 sub _req_common {
     my ($self, $c, $path, $args, $res_format) = @_;
     $self->$c($path, $args) or return;
-    $format = $res_format || 'raw';
+    $self->dump_format($res_format || 'raw');
     $self->print(
         $self->res_dump ."\n".
         $self->res->decoded_content
