@@ -12,7 +12,7 @@ use Term::ANSIColor;
 
 my %query;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 our %COLORS = (
     REQHEADER_KEY   => 'bold blue',
@@ -23,7 +23,7 @@ our %COLORS = (
 );
 
 has ua => (
-    is => 'ro',
+    is => 'rw',
     isa => 'Object',
     lazy => 1,
     default => sub { LWP::UserAgent->new }
@@ -54,7 +54,7 @@ has dumper => (
     lazy => 1,
     default => sub {
         require YAML;
-        return YAML->can('Dump');
+        return \&YAML::Dump;
     }
 );
 
@@ -202,18 +202,34 @@ sub get_q {
     my $u = $self->_get_url(@_) or return;
     $u->query_form(%query);
 
+    local $SIG{INT} = sub {
+        print "[DEBUG] INT signal caught!!!\n";
+        $self->req(undef);
+        goto SIGINT_POST;
+    };
+
     my $req = HTTP::Request->new(GET => "$u");
     $self->req($req);
     $self->res($self->ua->request($self->req));
+  SIGINT_GET:
+    $self->clear;
 }
 
 sub post_q {
     my $self = shift;
     my $u = $self->_get_url(@_) or return;
 
+    local $SIG{INT} = sub {
+        print "[DEBUG] INT signal caught!!!\n";
+        $self->req(undef);
+        goto SIGINT_POST;
+    };
+
     my $req = HTTP::Request::Common::POST("$u", [ %query ]);
     $self->req($req);
     $self->res($self->ua->request($self->req));
+  SIGINT_POST:
+    $self->clear;
 }
 
 sub file_q {
@@ -225,9 +241,18 @@ sub file_q {
         Content_Type => 'form-data',
         Content => [ %query ]
     );
+
+    local $SIG{INT} = sub {
+        print "[DEBUG] INT signal caught!!!\n";
+        $self->req(undef);
+        goto SIGINT_FILE;
+    };
+
     $self->req($req);
     $self->res($self->ua->request($req));
-}
+  SIGINT_FILE:
+    $self->clear;
+ }
 
 sub _get_url {
     my $self = shift;
